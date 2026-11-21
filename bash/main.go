@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -14,7 +15,7 @@ func main() {
 	fmt.Println("Starting Areca ...")
 
 	// Load TLS cert and private key (already created for local testing later different approach)
-	cert, err := tls.LoadX509KeyPair("server.crt", "server.key")
+	cert, err := tls.LoadX509KeyPair("../server.crt", "../server.key")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -38,6 +39,7 @@ func main() {
 		Conn: udpConn,
 	}
 
+	// QUIC listener
 	ln, err := tr.Listen(tlsConf, quicConf)
 	if err != nil {
 		log.Fatal(err)
@@ -51,7 +53,7 @@ func main() {
 			continue
 		}
 
-		// handle connection in new go routine
+		// Handle connection in new go routine
 		go handleConn(conn)
 	}
 }
@@ -59,6 +61,29 @@ func main() {
 func handleConn(conn *quic.Conn) {
 	fmt.Println("New connection from: ", conn.RemoteAddr())
 
+	str, err := conn.AcceptStream(context.Background())
+	if err != nil {
+		log.Println("Error accepting stream: ", err)
+		return
+	}
+
+	msg, err := bufio.NewReader(str).ReadString('\n')
+	if err != nil {
+		log.Println("Error reading message :", err)
+		return
+	}
+
+	fmt.Println("Received:", msg)
+
+	_, err = str.Write([]byte("Hello from the receiver."))
+	if err != nil {
+		log.Println("Error sending return message: ", err)
+	}
+
+	// Close message stream
+	str.Close()
+
+	// Wait for connection to close
 	<-conn.Context().Done()
 
 	fmt.Println("Connection closed: ", conn.RemoteAddr())
