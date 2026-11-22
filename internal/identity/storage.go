@@ -19,7 +19,7 @@ func LoadOrCreate() (*SoftwareIdentity, error) {
 		return nil, err
 	}
 
-	// Restrict directory permissions, including if it already exists.
+	// Restrict directory permissions, including if it already exists
 	err = os.Chmod(identityDir, 0700)
 	if err != nil {
 		return nil, err
