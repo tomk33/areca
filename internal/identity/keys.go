@@ -31,8 +31,8 @@ func encodePublicKey(pub *ecdsa.PublicKey) ([]byte, error) {
 	pubPEM := pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubDER})
 
 	// testing
-	fmt.Printf("%s", pubPEM)
-	fmt.Println("PKCS#8 DER bytes:", len(pubDER))
+	// fmt.Printf("%s", pubPEM)
+	// fmt.Println("PKCS#8 DER bytes:", len(pubDER))
 
 	return pubPEM, nil
 }
@@ -46,8 +46,8 @@ func encodePrivateKey(priv *ecdsa.PrivateKey) ([]byte, error) {
 	privPEM := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privDER})
 
 	// testing
-	fmt.Printf("%s", privPEM)
-	fmt.Println("PKCS#8 DER bytes:", len(privDER))
+	// fmt.Printf("%s", privPEM)
+	// fmt.Println("PKCS#8 DER bytes:", len(privDER))
 
 	return privPEM, nil
 }

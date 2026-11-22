@@ -9,13 +9,32 @@ import (
 	"net"
 
 	"github.com/quic-go/quic-go"
+
+	"github.com/tomk33/areca/internal/identity"
 )
 
 func main() {
 	fmt.Println("Starting Areca ...")
 
 	// Load TLS cert and private key (already created for local testing later different approach)
-	cert, err := tls.LoadX509KeyPair("/server.crt", "/server.key")
+	// cert, err := tls.LoadX509KeyPair("/server.crt", "/server.key")
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+
+	id, err := identity.LoadOrCreate()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// testing
+	// pub, err := id.PublicKey()
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// log.Printf("Identity public key: %x", pub)
+
+	cert, err := id.TLSCertificate()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -75,7 +94,7 @@ func handleConn(conn *quic.Conn) {
 
 	fmt.Println("Received:", msg)
 
-	_, err = str.Write([]byte("Hello from the receiver."))
+	_, err = str.Write([]byte("Hello from the receiver.\n"))
 	if err != nil {
 		log.Println("Error sending return message: ", err)
 	}
