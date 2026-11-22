@@ -15,7 +15,7 @@ func main() {
 	fmt.Println("Starting Areca ...")
 
 	// Load TLS cert and private key (already created for local testing later different approach)
-	cert, err := tls.LoadX509KeyPair("../server.crt", "../server.key")
+	cert, err := tls.LoadX509KeyPair("/server.crt", "/server.key")
 	if err != nil {
 		log.Fatal(err)
 	}

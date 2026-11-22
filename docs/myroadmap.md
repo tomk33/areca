@@ -2,10 +2,10 @@
 
 ## Phase 1 — Networking Foundations
 
-- [ ] Set up the Go development environment
-- [ ] Create the repository structure
-- [ ] Learn QUIC fundamentals
-- [ ] Build a basic QUIC client and server using an established implementation
+- [/] Set up the Go development environment
+- [/] Create the repository structure
+- [/] Learn QUIC fundamentals
+- [/] Build a basic QUIC client and server using an established implementation
 - [ ] Send and receive data
 - [ ] Handle connection lifecycle and errors
 - [ ] Add basic automated tests
