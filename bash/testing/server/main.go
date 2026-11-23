@@ -4,23 +4,61 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
+	"encoding/xml"
 	"fmt"
 	"log"
 	"net"
+	"os"
 
 	"github.com/quic-go/quic-go"
 
 	"github.com/tomk33/areca/internal/identity"
 )
 
+type HostProperties struct {
+	XMLName xml.Name `xml:"userdb"`
+	Users   []User   `xml:"user"`
+}
+
+type User struct {
+	ID       string   `xml:"id,attr"`
+	Username string   `xml:"username"`
+	Devices  []Device `xml:"devices>device"`
+}
+
+type Device struct {
+	ID        string `xml:"id,attr"`
+	PublicKey string `xml:"publickey"`
+}
+
 func main() {
 	fmt.Println("Starting Areca ...")
 
-	// Load TLS cert and private key (already created for local testing later different approach)
-	// cert, err := tls.LoadX509KeyPair("/server.crt", "/server.key")
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
+	caPool := x509.NewCertPool()
+
+	file, err := os.Open("users.xml")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer file.Close()
+
+	host := new(HostProperties)
+
+	decoder := xml.NewDecoder(file)
+	err = decoder.Decode(host)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	for _, user := range host.Users {
+		fmt.Println("User:", user.Username)
+
+		for _, device := range user.Devices {
+			fmt.Println("Device:", device.ID)
+			fmt.Println("Public key:", device.PublicKey)
+		}
+	}
 
 	id, err := identity.LoadOrCreate()
 	if err != nil {
@@ -40,14 +78,16 @@ func main() {
 	}
 
 	// Configure TLS
-	tlsConf := &tls.Config{
+	tlsCfg := &tls.Config{
 		InsecureSkipVerify: true, // testing only
 		Certificates:       []tls.Certificate{cert},
+		ClientCAs:          caPool,
+		ClientAuth:         tls.RequireAndVerifyClientCert,
 		MinVersion:         tls.VersionTLS13,
 	}
 
 	// Configure QUIC
-	quicConf := &quic.Config{}
+	quicCfg := &quic.Config{}
 
 	udpConn, err := net.ListenUDP("udp4", &net.UDPAddr{Port: 4433})
 	if err != nil {
@@ -60,7 +100,7 @@ func main() {
 	}
 
 	// QUIC listener
-	ln, err := tr.Listen(tlsConf, quicConf)
+	ln, err := tr.Listen(tlsCfg, quicCfg)
 	if err != nil {
 		log.Fatal(err)
 	}
