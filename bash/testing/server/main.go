@@ -41,8 +41,9 @@ func main() {
 
 	// Configure TLS
 	tlsConf := &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		MinVersion:   tls.VersionTLS13,
+		InsecureSkipVerify: true, // testing only
+		Certificates:       []tls.Certificate{cert},
+		MinVersion:         tls.VersionTLS13,
 	}
 
 	// Configure QUIC
@@ -88,13 +89,13 @@ func handleConn(conn *quic.Conn) {
 
 	msg, err := bufio.NewReader(str).ReadString('\n')
 	if err != nil {
-		log.Println("Error reading message :", err)
+		log.Println("Error reading message: ", err)
 		return
 	}
 
 	fmt.Println("Received:", msg)
 
-	_, err = str.Write([]byte("Hello from the receiver.\n"))
+	_, err = str.Write([]byte("Hello from the server\n"))
 	if err != nil {
 		log.Println("Error sending return message: ", err)
 	}
