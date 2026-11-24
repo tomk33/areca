@@ -1,0 +1,19 @@
+
+{
+  "_id": "001",
+  "username": "bob",
+  "devices": [
+    {
+      "deviceId": "bob-mac",
+      "publicKey": "-----BEGIN PUBLIC KEY-----\nMFYwEAYHKoZIzj0CAQYFK4EEAAoDQgAEbbSwMxmKxbmzX7JefbCC8+0CM/jO6LE8\nc4eWTwa/PFm3ggdDfOGCGa9MVh4dCcB63cWiJ/OO/944Nexj0LcAOg==\n-----END PUBLIC KEY-----",
+      "keyType": "ECDSA-P256",
+      "createdAt": "2026-11-24T12:00:00Z"
+    },
+    {
+      "deviceId": "bob-linux",
+      "publicKey": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0DAQcDQgAEQXfLcJltlmdYBIi4H5Rh/HTua7V3\nZGn9t68+5wO4ezondEc1uBbcLDDdl7LuDV/0/w0fH5bnEHdI3kJQHGS30w==\n-----END PUBLIC KEY-----",
+      "keyType": "ECDSA-P256",
+      "createdAt": "2026-11-24T12:00:00Z"
+    }
+  ]
+}
