@@ -27,10 +27,6 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
-type dbStruct struct {
-	Data bson.RawValue `bson:"data"`
-}
-
 func main() {
 	// Getting values from user entry (later implemented inside system and a user click on a device name)
 	listenAddr := flag.String("listen", ":4433", "")
