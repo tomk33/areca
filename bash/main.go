@@ -1,35 +1,131 @@
 package main
 
 import (
+	// go imports
 	"bytes"
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/pem"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"os"
+	"path/filepath"
 	"time"
 
+	// package imports
 	"github.com/quic-go/quic-go"
 	"github.com/tomk33/areca/internal/database"
 	"github.com/tomk33/areca/internal/identity"
+
+	// database imports
+	"go.mongodb.org/mongo-driver/v2/bson"
+	"go.mongodb.org/mongo-driver/v2/mongo"
+	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
+
+type dbStruct struct {
+	Data bson.RawValue `bson:"data"`
+}
 
 func main() {
 	// Getting values from user entry (later implemented inside system and a user click on a device name)
 	listenAddr := flag.String("listen", ":4433", "")
 	peerAddr := flag.String("peer", "", "")
-	peerKeyPath := flag.String("peer-key", "", "")
+	peerDeviceID := flag.String("peer-id", "", "")
 
 	flag.Parse()
 
-	run(*listenAddr, *peerAddr, *peerKeyPath)
+	run(*listenAddr, *peerAddr, *peerDeviceID)
 }
 
-func run(listenAddr, peerAddr, peerKeyPath string) error {
+func dbLoadSave() error {
+	rootDir, err := os.UserConfigDir()
+	if err != nil {
+		return err
+	}
+
+	usersDir := filepath.Join(rootDir, "Areca", "database")
+
+	usersDirPath := filepath.Join(usersDir, "users.json")
+	_, usersGetErr := os.Stat(usersDirPath)
+	usersExists := usersGetErr == nil
+
+	// Dir made if it doesn't exist
+	if !usersExists {
+		// Make directory
+		err = os.MkdirAll(usersDir, 0700)
+		if err != nil {
+			return err
+		}
+
+		// Make blank json file for later writing of data
+		newPath := filepath.Join(usersDir, "users.json")
+		if err = os.WriteFile(newPath, []byte{}, 0600); err != nil {
+			return err
+		}
+	}
+
+	// When dir exists set path to users.json
+	usersJsonPath := filepath.Join(usersDir, "users.json")
+
+	var uri string
+
+	// ----------------------------
+	// ENTER DATABASE URI BELOW ...
+	// ----------------------------
+	if uri = os.Getenv("MONGODB_URI"); uri == "" {
+		log.Fatal("You must set your 'MONGODB_URI' environment variable. See\n\t https://docs.mongodb.com/drivers/go/current/usage-examples/")
+	}
+
+	// Uses the SetServerAPIOptions() method to set the Stable API version to 1
+	serverAPI := options.ServerAPI(options.ServerAPIVersion1)
+
+	// Defines the options for the MongoDB client
+	opts := options.Client().ApplyURI(uri).SetServerAPIOptions(serverAPI)
+
+	// Creates a new client and connects to the server
+	client, err := mongo.Connect(opts)
+
+	if err != nil {
+		panic(err)
+	}
+	defer func() {
+		if err = client.Disconnect(context.TODO()); err != nil {
+			panic(err)
+		}
+	}()
+
+	coll := client.Database("arecadb").Collection("users")
+
+	cursor, err := coll.Find(context.Background(), bson.D{})
+	if err != nil {
+		return err
+	}
+	defer cursor.Close(context.Background())
+
+	var users []bson.M
+	err = cursor.All(context.Background(), &users)
+	if err != nil {
+		return err
+	}
+
+	jsonData, err := json.Marshal(users)
+	if err != nil {
+		return err
+	}
+
+	if err = os.WriteFile(usersJsonPath, jsonData, 0600); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func run(listenAddr, peerAddr, peerDeviceID string) error {
 	fmt.Println("Starting Areca...")
 
 	// Load this devices persistent id
@@ -52,14 +148,17 @@ func run(listenAddr, peerAddr, peerKeyPath string) error {
 		}
 	}
 
+	// Load and save the current database as a json
+	dbLoadSave()
+
 	// Create this devices TLS cert
 	cert, err := id.TLSCertificate()
 	if err != nil {
 		return err
 	}
 
-	// Load the public key of the device we trust
-	peerKey, err := loadPeerPublicKey(peerKeyPath)
+	// Load the selected peer's public key.
+	peerKey, err := loadPeerPublicKey(peerDeviceID)
 	if err != nil {
 		return err
 	}
@@ -111,35 +210,20 @@ func run(listenAddr, peerAddr, peerKeyPath string) error {
 		}
 	}()
 
-	// CONITNUE HERE WITH THE MESSAGING SERVICE......
+	// CONITNUE HERE WITH THE MESSAGING SERVICE..........
 
 	return nil
 }
 
-func loadPeerPublicKey(path string) ([]byte, error) {
-	// CODE FOR GETTING KEY FROM XML HERE
+func loadPeerPublicKey(peerDeviceID string) ([]byte, error) {
 
-	rawPem, _ := os.ReadFile("./testingKeys/public.key")
-	pemBlock, _ := pem.Decode(rawPem)
-	publicKey, _ := x509.ParsePKCS1PublicKey(pemBlock.Bytes)
+	// CODE FOR READING KEY FROM JSON WILL GO HERE ..........
+
+	// rawPem, _ := os.ReadFile("./testingKeys/public.key")
+	// pemBlock, _ := pem.Decode(rawPem)
+	// publicKey, _ := x509.ParsePKCS1PublicKey(pemBlock.Bytes)
 
 	return publicKey, nil
-	// data, err := os.ReadFile(path)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// // Decode the key from the pem format
-	// block, _ := pem.Decode(data)
-	// if block == nil || block.Type != "PUBLIC KEY" {
-	// 	return nil, errors.New("invalid peer public key PEM")
-	// }
-
-	// // Parse the block into public key format (.crt)
-	// _, err = x509.ParsePKIXPublicKey(block.Bytes)
-	// if err != nil {
-	// 	return nil, err
-	// }
 }
 
 func createTLSCfg(cert tls.Certificate, peerKey []byte, isServer bool) *tls.Config {
