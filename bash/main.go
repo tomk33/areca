@@ -27,6 +27,20 @@ import (
 	"go.mongodb.org/mongo-driver/v2/mongo/options"
 )
 
+// User represents a user account with multiple devices
+type User struct {
+    ID          string         `json:"_id"`        // MongoDB ID
+    Username    string         `json:"username"`   // User's name/identifier
+    Devices     []Device       `json:"deviceid"`   // List of devices owned by this user
+}
+
+// Device represents a device owned by a user
+type Device struct {
+    ID      string         `json:"deviceid"` // Unique device identifier
+    Name    string         `json:"devicename"` // Human-readable name
+    PublicKey interface{}   `json:"publickey"`  // Public key data (can be PEM string)
+}
+
 func main() {
 	// Getting values from user entry (later implemented inside system and a user click on a device name)
 	listenAddr := flag.String("listen", ":4433", "")
@@ -36,6 +50,96 @@ func main() {
 	flag.Parse()
 
 	run(*listenAddr, *peerAddr, *peerDeviceID)
+}
+
+func run(listenAddr, peerAddr, peerDeviceID string) error {
+	fmt.Println("Starting Areca...")
+
+	// Load this devices persistent id
+	id, err := identity.LoadOrCreate()
+	if err != nil {
+		return err
+	}
+
+	// Load or create the device's db info
+	device, err := database.LoadOrCreateDevice()
+	if err != nil {
+		return err
+	}
+
+	// Register only if this device has not been registered yet
+	if device.Username == "" {
+		err = database.RegisterDevice(id, device)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Load and save the current database as a json
+	dbLoadSave()
+
+	// Create this devices TLS cert
+	cert, err := id.TLSCertificate()
+	if err != nil {
+		return err
+	}
+
+	// Load the selected peer's public key
+	peerKey, err := loadPeerPublicKey(peerDeviceID)
+	if err != nil {
+		return err
+	}
+
+	// Create the TLS configs
+	serverTLS := createTLSCfg(cert, peerKey, true)
+	clientTLS := createTLSCfg(cert, peerKey, false)
+
+	quicCfg := &quic.Config{}
+
+	// Create the UDP socket for incoming
+	udpAddr, err := net.ResolveUDPAddr("udp", listenAddr)
+	if err != nil {
+		return err
+	}
+
+	udpConn, err := net.ListenUDP("udp", udpAddr)
+	if err != nil {
+		return err
+	}
+	defer udpConn.Close()
+
+	// Create the QUIC transport and listener
+	tr := &quic.Transport{
+		Conn: udpConn,
+	}
+
+	listener, err := tr.Listen(serverTLS, quicCfg)
+	if err != nil {
+		return err
+	}
+	defer listener.Close()
+
+	fmt.Println("Listening on port: ", listenAddr)
+
+	// Accept an incoming conn
+	incoming := make(chan *quic.Conn, 1)
+	acceptErrors := make(chan error, 1)
+
+	go func() {
+		for {
+			conn, err := listener.Accept(context.Background())
+			if err != nil {
+				acceptErrors <- err
+				return
+			}
+
+			incoming <- conn
+		}
+	}()
+
+	// CONITNUE HERE WITH THE MESSAGING SERVICE..........
+
+	return nil
 }
 
 func dbLoadSave() error {
@@ -121,105 +225,55 @@ func dbLoadSave() error {
 	return nil
 }
 
-func run(listenAddr, peerAddr, peerDeviceID string) error {
-	fmt.Println("Starting Areca...")
-
-	// Load this devices persistent id
-	id, err := identity.LoadOrCreate()
+func loadAndParseUsers() ([]User, error) {
+    rootDir, err := os.UserConfigDir()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	// Load or create the device's db info
-	device, err := database.LoadOrCreateDevice()
-	if err != nil {
-		return err
-	}
-
-	// Register only if this device has not been registered yet
-	if device.Username == "" {
-		err = database.RegisterDevice(id, device)
-		if err != nil {
-			return err
-		}
-	}
-
-	// Load and save the current database as a json
-	dbLoadSave()
-
-	// Create this devices TLS cert
-	cert, err := id.TLSCertificate()
-	if err != nil {
-		return err
-	}
-
-	// Load the selected peer's public key.
-	peerKey, err := loadPeerPublicKey(peerDeviceID)
-	if err != nil {
-		return err
-	}
-
-	// Create the TLS configs
-	serverTLS := createTLSCfg(cert, peerKey, true)
-	clientTLS := createTLSCfg(cert, peerKey, false)
-
-	quicCfg := &quic.Config{}
-
-	// Create the UDP socket for incoming
-	udpAddr, err := net.ResolveUDPAddr("udp", listenAddr)
-	if err != nil {
-		return err
-	}
-
-	udpConn, err := net.ListenUDP("udp", udpAddr)
-	if err != nil {
-		return err
-	}
-	defer udpConn.Close()
-
-	// Create the QUIC transport and listener
-	tr := &quic.Transport{
-		Conn: udpConn,
-	}
-
-	listener, err := tr.Listen(serverTLS, quicCfg)
-	if err != nil {
-		return err
-	}
-	defer listener.Close()
-
-	fmt.Println("Listening on port: ", listenAddr)
-
-	// Accept an incoming conn
-	incoming := make(chan *quic.Conn, 1)
-	acceptErrors := make(chan error, 1)
-
-	go func() {
-		for {
-			conn, err := listener.Accept(context.Background())
-			if err != nil {
-				acceptErrors <- err
-				return
-			}
-
-			incoming <- conn
-		}
-	}()
-
-	// CONITNUE HERE WITH THE MESSAGING SERVICE..........
-
-	return nil
+	// Define the file path to read from
+	usersJsonPath := filepath.Join(rootDir, "Areca", "database", "users.json")
+    
+    // Read the JSON file content
+    data, err := os.ReadFile(usersJsonPath)
+    if err != nil {
+        return nil, fmt.Errorf("Failed to read json: %w", err)
+    }
+    
+    var users []User
+    err = json.Unmarshal(data, &users)
+    if err != nil {
+        return nil, fmt.Errorf("Failed to parse json: %w", err)
+    }
+    
+    return users, nil
 }
 
 func loadPeerPublicKey(peerDeviceID string) ([]byte, error) {
+	// Loading users.json and parsing into User struct
+	users, err := loadAndParseUsers()
+    if err != nil {
+        return nil, err
+    }
 
-	// CODE FOR READING KEY FROM JSON WILL GO HERE ..........
+	var targetDevice *Device = nil
 
-	// rawPem, _ := os.ReadFile("./testingKeys/public.key")
-	// pemBlock, _ := pem.Decode(rawPem)
-	// publicKey, _ := x509.ParsePKCS1PublicKey(pemBlock.Bytes)
+	for _, user := range users {
+		for _, device := renage devices {
+			if device.ID == peerDeviceID {
+                targetDevice = &device
+                break // Found the device
+            }
+		}
+	}
 
-	return publicKey, nil
+	// Return device's public key
+    if targetDevice != nil {
+        return []byte(targetDevice.PublicKey.(string)), nil
+    }
+
+    // Return error if device not found
+    return nil, fmt.Errorf("No user or device with ID: %s", peerDeviceID)
 }
 
 func createTLSCfg(cert tls.Certificate, peerKey []byte, isServer bool) *tls.Config {
