@@ -29,16 +29,16 @@ import (
 
 // User represents a user account with multiple devices
 type User struct {
-    ID          string         `json:"_id"`        // MongoDB ID
-    Username    string         `json:"username"`   // User's name/identifier
-    Devices     []Device       `json:"deviceid"`   // List of devices owned by this user
+	ID       string   `json:"_id"`      // MongoDB ID
+	Username string   `json:"username"` // User's name/identifier
+	Devices  []Device `json:"deviceid"` // List of devices owned by this user
 }
 
 // Device represents a device owned by a user
 type Device struct {
-    ID      string         `json:"deviceid"` // Unique device identifier
-    Name    string         `json:"devicename"` // Human-readable name
-    PublicKey interface{}   `json:"publickey"`  // Public key data (can be PEM string)
+	ID        string      `json:"deviceid"`   // Unique device identifier
+	Name      string      `json:"devicename"` // Human-readable name
+	PublicKey interface{} `json:"publickey"`  // Public key data (can be PEM string)
 }
 
 func main() {
@@ -226,54 +226,54 @@ func dbLoadSave() error {
 }
 
 func loadAndParseUsers() ([]User, error) {
-    rootDir, err := os.UserConfigDir()
+	rootDir, err := os.UserConfigDir()
 	if err != nil {
 		return nil, err
 	}
 
 	// Define the file path to read from
 	usersJsonPath := filepath.Join(rootDir, "Areca", "database", "users.json")
-    
-    // Read the JSON file content
-    data, err := os.ReadFile(usersJsonPath)
-    if err != nil {
-        return nil, fmt.Errorf("Failed to read json: %w", err)
-    }
-    
-    var users []User
-    err = json.Unmarshal(data, &users)
-    if err != nil {
-        return nil, fmt.Errorf("Failed to parse json: %w", err)
-    }
-    
-    return users, nil
+
+	// Read the JSON file content
+	data, err := os.ReadFile(usersJsonPath)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to read json: %w", err)
+	}
+
+	var users []User
+	err = json.Unmarshal(data, &users)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to parse json: %w", err)
+	}
+
+	return users, nil
 }
 
 func loadPeerPublicKey(peerDeviceID string) ([]byte, error) {
 	// Loading users.json and parsing into User struct
 	users, err := loadAndParseUsers()
-    if err != nil {
-        return nil, err
-    }
+	if err != nil {
+		return nil, err
+	}
 
 	var targetDevice *Device = nil
 
 	for _, user := range users {
-		for _, device := renage devices {
+		for _, device := range user.Devices {
 			if device.ID == peerDeviceID {
-                targetDevice = &device
-                break // Found the device
-            }
+				targetDevice = &device
+				break // Found the device
+			}
 		}
 	}
 
 	// Return device's public key
-    if targetDevice != nil {
-        return []byte(targetDevice.PublicKey.(string)), nil
-    }
+	if targetDevice != nil {
+		return []byte(targetDevice.PublicKey.(string)), nil
+	}
 
-    // Return error if device not found
-    return nil, fmt.Errorf("No user or device with ID: %s", peerDeviceID)
+	// Return error if device not found
+	return nil, fmt.Errorf("No user or device with ID: %s", peerDeviceID)
 }
 
 func createTLSCfg(cert tls.Certificate, peerKey []byte, isServer bool) *tls.Config {
