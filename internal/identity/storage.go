@@ -120,7 +120,19 @@ func saveFile(path string, data []byte, perm os.FileMode) error {
 		return err
 	}
 
-	// LATER ADD INTEGRITY TO ENSURE NO PARTIAL KEYS
+	// Helps reduce chance of partial keys are created by making the cached data get pushed to the ssd
+	err = file.Sync()
+	if err != nil {
+		file.Close()
+		os.Remove(path)
+		return err
+	}
 
-	return file.Close()
+	err = file.Close()
+	if err != nil {
+		os.Remove(path)
+		return err
+	}
+
+	return nil
 }
