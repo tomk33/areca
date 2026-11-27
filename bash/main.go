@@ -137,9 +137,39 @@ func run(listenAddr, peerAddr, peerDeviceID string) error {
 		}
 	}()
 
-	// CONITNUE HERE WITH THE MESSAGING SERVICE..........
+	// --------------------------------------
+	// Handling context for messaging service
+	// --------------------------------------
+	var conn *quic.Conn
+	var isInitiator bool
 
-	return nil
+	// Either make a conn or wait for one
+	if peerAddr != "" {
+		fmt.Println("Connecting to ", peerAddr)
+
+		conn, err = quic.DialAddr(context.Background(), peerAddr, clientTLS, quicCfg)
+		if err != nil {
+			return err
+		}
+
+		isInitiator = true
+		fmt.Println("Connected to peer ", peerAddr)
+	} else {
+		fmt.Println("Waiting for an incoming connection...")
+
+		select {
+		case conn = <-incoming:
+			fmt.Println("Incoming connection from", conn.RemoteAddr())
+
+		case err = <-acceptErrors:
+			return err
+		}
+	}
+
+	defer conn.CloseWithError(0, "Connetion closed")
+
+	// Start the messaging session
+	return runMessaging(conn, isInitiator)
 }
 
 func dbLoadSave() error {
@@ -323,5 +353,9 @@ func verifyPeer(state tls.ConnectionState, peerKey []byte) error {
 		return errors.New("invalid peer certificate signature")
 	}
 
+	return nil
+}
+
+func runMessaging(conn *quic.Conn, initiator bool) error {
 	return nil
 }
